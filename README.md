@@ -4,7 +4,7 @@ This project implements a heuristic solver to find the tallest possible stack of
 
 ## Why This Project?
 
-Finding the optimal box stack is an NP-hard combinatorial problem when you allow arbitrary subsets, orientations, and strict-fit constraints. Exact methods become infeasible as the number of boxes grows. Instead, we:
+Finding the optimal box stack is an NP-hard problem when you allow arbitrary subsets, orientations, and strict-fit constraints. Exact methods become infeasible as the number of boxes grows. Instead, we:
 
 - Generate a high-quality initial solution using dynamic programming, exploiting the box-stacking variant of longest-increasing-subsequence in 3D.
 - Refine the solution via Simulated Annealing, a probabilistic metaheuristic that can escape local optima and approach global maxima in large search spaces.
