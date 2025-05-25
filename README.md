@@ -29,11 +29,11 @@ Simulated Annealing (SA) mimics the physical process of annealing in metallurgy:
 
 - **State:** a candidate stack.
 - **Energy:** negative of stack height (we minimise energy).
-- **Neighbourhood:** random local edits (swap, remove/insert, replace, or rebuild part of the stack).
+- **Neighbourhood:** random local edits (swap, remove/insert, replace, or rebuild part of the stack). The number of boxes that can be changed in a move is controlled by the temperature parameter t.
 - **Acceptance:**
   - Always accept improvements.
-  - Otherwise accept with probability exp(-ΔE / T), allowing escape from local optima.
-- **Cooling:** after each iteration, reduce temperature T ← T - r until T ≤ 0.
+  - Otherwise accept with probability exp(-ΔE / t), allowing escape from local optima.
+- **Cooling:** after each iteration, reduce temperature using t = t - r (as required by the assignment outline), until t ≤ 0.
 
 ## Build & Run
 
@@ -50,16 +50,16 @@ java NPCStack <input-file> <initial-temperature> <cooling-rate>
 ```
 
 - `<input-file>`: path to a text file where each line has three positive integers (box dimensions).
-- `<initial-temperature>`: positive integer, controls neighbourhood size in SA.
-- `<cooling-rate>`: real value (0.1 ≤ r ≤ initial-temperature), the amount by which temperature decreases each step.
+- `<initial-temperature>`: integer > 0, controls the number of boxes that can be changed in a move (neighbourhood size) in SA.
+- `<cooling-rate>`: real value (0.1 ≤ r ≤ t), the amount by which temperature is reduced after each new solution (i.e. t = t - r).
 
 **Usage Example:**
 
 ```
-java NPCStack boxes.txt 100 0.5
+java NPCStack boxes.txt 20 0.1
 ```
 
-This runs the optimiser on `boxes.txt` with an initial temperature of 100 and a cooling rate of 0.5. Output is printed to stdout:
+This runs the optimiser on `boxes.txt` with an initial temperature of 20 and a cooling rate of 0.1. Output is printed to stdout:
 
 ```
 <width> <depth> <height> <cumulative-height>
@@ -75,9 +75,7 @@ If you want to test simulated annealing starting from a short random seed (not t
 1. **Comment out the DP and prune code:**
    ```java
    // List<Orientation> dpStack = dpAllowReuse(all);
-   // System.out.println("pre-prune height: " + stackHeight(dpStack));
    // List<Orientation> seed = pruneToSingleUse(dpStack);
-   // System.out.println("seed height: " + stackHeight(seed));
    ```
 2. **Insert this code instead (after building `all`):**
    ```java
@@ -109,5 +107,4 @@ If you want to test simulated annealing starting from a short random seed (not t
 This will let you observe how simulated annealing alone can build up a stack from a random starting point. This is useful for testing and for small/simple test cases.
 
 ---
-
 
