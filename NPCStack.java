@@ -104,22 +104,21 @@ public class NPCStack {
     private static List<Orientation> simulatedAnnealing(
         List<Orientation> current,
         List<Orientation> all,
-        double initialTemp,
-        double cooling
+        double t,
+        double r
     ) {
         Random rand = new Random();
-        double temp = initialTemp;
         List<Orientation> best = new ArrayList<>(current);
         double bestHeight = stackHeight(best);
-        while (temp > 1e-3) {
+        while (t > 0) {
             // try several neighbors per temperature
             for (int it = 0; it < 20; it++) {
                 List<Orientation> neighbor = neighbour(current, all, rand);
                 double curHeight = stackHeight(current);
                 double neighHeight = stackHeight(neighbor);
                 double diff = neighHeight - curHeight;
-                // accept if better, or with probability exp(diff/temp)
-                if (diff > 0 || rand.nextDouble() < Math.exp(diff / temp)) {
+                // accept if better, or with probability exp(diff/t)
+                if (diff > 0 || rand.nextDouble() < Math.exp(diff / t)) {
                     current = neighbor;
                     if (neighHeight > bestHeight) {
                         best = new ArrayList<>(neighbor);
@@ -127,8 +126,8 @@ public class NPCStack {
                     }
                 }
             }
-            // cool down
-            temp *= (1 - cooling / initialTemp);
+            // cool down: t = t - r (assignment spec)
+            t = t - r;
         }
         return best;
     }
