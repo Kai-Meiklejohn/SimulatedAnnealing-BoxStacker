@@ -104,7 +104,7 @@ If you want to test simulated annealing starting from a short random seed (not t
    printStack(best);
    ```
 
-This will let you observe how simulated annealing alone can build up a stack from a random starting point. This is useful for testing and for small/simple test cases.
+This will let you observe how simulated annealing alone can build up a stack from a random starting point. Use this to see that the Simulated Annealing actually works when the DP part is too good and
+solves the problem.
 
----
 
