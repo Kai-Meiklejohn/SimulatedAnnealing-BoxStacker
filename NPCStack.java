@@ -2,7 +2,7 @@ import java.io.*;
 import java.util.*;
 
 /**
- * A hybrid box-stacker: polynomial DP seed (with reuse), prune to enforce single-use,
+ * box-stacker: polynomial DP seed (with reuse), prune to enforce single use,
  * then simulated annealing to refine.
  *
  * Author: Kai Meiklejohn (1632448)
