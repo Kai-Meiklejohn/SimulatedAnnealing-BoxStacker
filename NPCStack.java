@@ -23,27 +23,27 @@ public class NPCStack {
             System.err.println("usage: java NPCStack <file> <initial-temp> <cooling-rate>");
             System.exit(1);
         }
-        String file     = args[0];
-        double T0       = Double.parseDouble(args[1]);
-        double cooling  = Double.parseDouble(args[2]);
+        String file = args[0];
+        double T0 = Double.parseDouble(args[1]);
+        double cooling = Double.parseDouble(args[2]);
 
-        // 1) load raw boxes
+        // load raw boxes
         List<int[]> raw = readBoxes(file);
         if (raw.isEmpty()) { System.err.println("no boxes!"); System.exit(1); }
 
-        // 2) all 3 orientations each
+        // all 3 orientations each
         List<Orientation> all = buildOrientations(raw);
 
-        // 3) DP allowing unlimited reuse → backtrack full stack
+        // dp allowing unlimited reuse → backtrack full stack
         List<Orientation> dpStack = dpAllowReuse(all);
 
-        // 4) prune duplicates (single-use) from that DP stack
+        // prune duplicates from that DP stack
         List<Orientation> seed = pruneToSingleUse(dpStack);
 
-        // 5) refine via simulated annealing
+        // refine with simulated annealing
         List<Orientation> best = simulatedAnnealing(seed, all, T0, cooling);
 
-        // 6) output top→bottom
+        // output top to bottom
         printStack(best);
     }
 
