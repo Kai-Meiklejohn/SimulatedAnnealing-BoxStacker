@@ -240,9 +240,6 @@ public class NPCStack {
         return true;
     }
 
-    // ———————————————————————————————————
-    // i/o and helpers
-
     /**
      * returns the total height of a stack
      */
@@ -290,14 +287,18 @@ public class NPCStack {
     }
 
     /**
-     * prints the stack from top to bottom, showing cumulative height
+     * prints the stack from top to bottom, showing cumulative height at the point where the box is top-most
+     * each line: width depth height cumulativeHeightAtTop
      */
     private static void printStack(List<Orientation> stack) {
-        double cum = 0;
-        for (int i = stack.size() - 1; i >= 0; i--) {
-            Orientation o = stack.get(i);
-            cum += o.height;
-            System.out.printf("%d %d %d %.0f\n", o.width, o.depth, o.height, cum);
-        }
+    double total = stackHeight(stack); 
+    double cumulativeHeight = total;  
+    // iterate from the top-most box (end of list) to the bottom-most (start)
+    for (int i = stack.size() - 1; i >= 0; i--) {
+        Orientation stackItem = stack.get(i);
+        // print current box with its cumulative height from the top
+        System.out.printf("%d %d %d %.0f\n", stackItem.width, stackItem.depth, stackItem.height, cumulativeHeight);
+        cumulativeHeight -= stackItem.height; // subtract current box’s height before moving further down
     }
+}
 }
