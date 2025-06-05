@@ -88,7 +88,7 @@ public class NPCStack {
         Random random = new Random();
         int iterationsPerTemp = 200;
         double temperature = initialTemp;
-        while (temperature > coolingRate) {
+        while (temperature > 0) {
             for (int iter = 0; iter < iterationsPerTemp; iter++) {
                 // create a neighbor stack by making random changes
                 List<boxOrientation> neighborStack = new ArrayList<>(currentStack);
