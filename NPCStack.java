@@ -2,7 +2,7 @@ import java.io.*;
 import java.util.*;
 
 /**
- * Box-stacker: greedy algorithm to make initial stack,,
+ * Box-stacker: greedy algorithm to make initial stack,
  * then simulated annealing to refine.
  *
  * Author: Kai Meiklejohn (1632448)
@@ -97,30 +97,30 @@ public class NPCStack {
                 for (int c = 0; c < numChanges; c++) {
                     boolean doRemove = !neighborStack.isEmpty() && random.nextBoolean();
                     if (doRemove) {
-                        // Remove a random box and try to restack above
+                        // remove a random box and try to restack above
                         int removeIdx = random.nextInt(neighborStack.size());
                         List<boxOrientation> aboveBuffer = new ArrayList<>();
-                        // Remove all boxes above the chosen index and store them
+                        // remove all boxes above the chosen index and store them
                         for (int j = neighborStack.size() - 1; j > removeIdx; j--) {
                             aboveBuffer.add(neighborStack.get(j));
                             neighborStack.remove(j);
                         }
                         neighborStack.remove(removeIdx);
                         Collections.reverse(aboveBuffer);
-                        // Try to restack the removed boxes if they still fit
+                        // try to restack the removed boxes if they still fit
                         for (boxOrientation o : aboveBuffer) {
                             if (neighborStack.isEmpty() || (o.width < neighborStack.get(neighborStack.size() - 1).width && o.depth < neighborStack.get(neighborStack.size() - 1).depth)) {
                                 neighborStack.add(o);
                             }
                         }
                     } else {
-                        // Try to insert a new box at a random position if possible
+                        // try to insert a new box at a random position if possible
                         int insertPos = random.nextInt(neighborStack.size() + 1);
                         Set<Integer> usedBoxIndices = new HashSet<>();
                         for (boxOrientation o : neighborStack) usedBoxIndices.add(o.originalBoxIndex);
                         boxOrientation boxBelow = (insertPos == 0 ? null : neighborStack.get(insertPos - 1));
                         List<boxOrientation> candidates = new ArrayList<>();
-                        // Find all unused orientations that fit below and above
+                        // find all unused orientations that fit below and above
                         for (boxOrientation o : allOrientations) {
                             if (usedBoxIndices.contains(o.originalBoxIndex)) continue;
                             if (boxBelow != null && !(o.width < boxBelow.width && o.depth < boxBelow.depth)) continue;
@@ -140,14 +140,14 @@ public class NPCStack {
                         if (!candidates.isEmpty()) {
                             boxOrientation toAdd = candidates.get(random.nextInt(candidates.size()));
                             List<boxOrientation> aboveSegment = new ArrayList<>();
-                            // Remove all boxes above the insert position
+                            // remove all boxes above the insert position
                             for (int j = neighborStack.size() - 1; j >= insertPos; j--) {
                                 aboveSegment.add(neighborStack.get(j));
                                 neighborStack.remove(j);
                             }
                             neighborStack.add(toAdd);
                             Collections.reverse(aboveSegment);
-                            // Try to restack the removed boxes if they still fit
+                            // try to restack the removed boxes if they still fit
                             for (boxOrientation o : aboveSegment) {
                                 if (neighborStack.isEmpty() || (o.width < neighborStack.get(neighborStack.size() - 1).width && o.depth < neighborStack.get(neighborStack.size() - 1).depth)) {
                                     neighborStack.add(o);
