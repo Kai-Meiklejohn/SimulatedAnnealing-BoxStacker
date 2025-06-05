@@ -2,19 +2,23 @@ import java.io.*;
 import java.util.*;
 
 /**
- * box-stacker: polynomial DP seed (with reuse), prune to enforce single use,
+ * Box-stacker: greedy algorithm to make initial stack,,
  * then simulated annealing to refine.
  *
  * Author: Kai Meiklejohn (1632448)
  */
 public class NPCStack {
 
-    /** one orientation of a box (w ≤ d for consistency) */
-    static class Orientation {
-        int width, depth, height, originalIndex;
-        Orientation(int w, int d, int h, int idx) {
-            this.width = w;  this.depth = d;
-            this.height = h; this.originalIndex = idx;
+    /**
+     * represents a single orientation of a box (width <= depth for consistency)
+     */
+    static class boxOrientation {
+        int width, depth, height, originalBoxIndex;
+        boxOrientation(int width, int depth, int height, int originalBoxIndex) {
+            this.width = width;
+            this.depth = depth;
+            this.height = height;
+            this.originalBoxIndex = originalBoxIndex;
         }
     }
 
@@ -23,244 +27,179 @@ public class NPCStack {
             System.err.println("usage: java NPCStack <file> <initial-temp> <cooling-rate>");
             System.exit(1);
         }
-        String file = args[0];
-        double T0 = Double.parseDouble(args[1]);
-        double cooling = Double.parseDouble(args[2]);
+        String inputFile = args[0];
+        double initialTemp = Double.parseDouble(args[1]);
+        double coolingRate = Double.parseDouble(args[2]);
 
-        // load raw boxes
-        List<int[]> raw = readBoxes(file);
-        if (raw.isEmpty()) { System.err.println("no boxes!"); System.exit(1); }
+        // load all boxes from file
+        List<int[]> boxDimensions = readBoxesFromFile(inputFile);
+        if (boxDimensions.isEmpty()) {
+            System.err.println("no boxes!");
+            System.exit(1);
+        }
 
-        // all 3 orientations each
-        List<Orientation> all = buildOrientations(raw);
+        // generate all 3 orientations for each box
+        List<boxOrientation> allOrientations = generateAllOrientations(boxDimensions);
 
-        // dp allowing unlimited reuse → backtrack full stack
-        List<Orientation> dpStack = dpAllowReuse(all);
+        // refine the stack using simulated annealing
+        List<boxOrientation> bestStack = runSimulatedAnnealing(allOrientations, initialTemp, coolingRate);
 
-        // prune duplicates from that DP stack
-        List<Orientation> seed = pruneToSingleUse(dpStack);
-
-        // refine with simulated annealing
-        List<Orientation> best = simulatedAnnealing(seed, all, T0, cooling);
-
-        // output top to bottom
-        printStack(best);
+        // print the stack from top to bottom
+        printStackWithCumulativeHeight(bestStack);
     }
 
     /**
-     * finds the tallest stack allowing unlimited reuse of orientations (ignores single-use constraint)
+     * builds a feasible stack greedily always adds the next largest box by base area that fits and is unused
+     * this is a simple greedy heuristic not optimal but fast
      */
-    private static List<Orientation> dpAllowReuse(List<Orientation> orientations) {
-        int n = orientations.size();
-        // sort by decreasing base area
-        orientations.sort((a, b) -> Integer.compare(b.width * b.depth, a.width * a.depth));
-        double[] maxHeight = new double[n]; // maxHeight[i]: max stack height ending with orientations[i]
-        int[] prev = new int[n];            // prev[i]: previous box in the stack
-        for (int i = 0; i < n; i++) {
-            maxHeight[i] = orientations.get(i).height;
-            prev[i] = -1;
-            for (int j = 0; j < i; j++) {
-                Orientation lower = orientations.get(j);
-                Orientation upper = orientations.get(i);
-                // can upper go on lower?
-                if (upper.width < lower.width && upper.depth < lower.depth) {
-                    double candidate = maxHeight[j] + upper.height;
-                    if (candidate > maxHeight[i]) {
-                        maxHeight[i] = candidate;
-                        prev[i] = j;
-                    }
-                }
+    private static List<boxOrientation> buildGreedyStack(List<boxOrientation> orientations) {
+        // Sort all orientations by decreasing base area (width * depth)
+        List<boxOrientation> sorted = new ArrayList<>(orientations);
+        sorted.sort((a, b) -> Integer.compare(b.width * b.depth, a.width * a.depth));
+        Set<Integer> usedBoxIndices = new HashSet<>();
+        List<boxOrientation> stack = new ArrayList<>();
+        boxOrientation boxBelow = null;
+        for (boxOrientation orientation : sorted) {
+            // only use each box once (by original index)
+            if (usedBoxIndices.contains(orientation.originalBoxIndex)) continue;
+            // only stack if it fits strictly inside the box below
+            if (boxBelow == null || (orientation.width < boxBelow.width && orientation.depth < boxBelow.depth)) {
+                stack.add(orientation);
+                usedBoxIndices.add(orientation.originalBoxIndex);
+                boxBelow = orientation;
             }
         }
-        // find index of tallest stack
-        int bestIdx = 0;
-        for (int i = 1; i < n; i++)
-            if (maxHeight[i] > maxHeight[bestIdx]) bestIdx = i;
-        // backtrack to build stack
-        LinkedList<Orientation> stack = new LinkedList<>();
-        for (int cur = bestIdx; cur != -1; cur = prev[cur])
-            stack.addFirst(orientations.get(cur));
         return stack;
     }
 
     /**
-     * removes all but the first occurrence of each originalIndex (enforces single-use)
+     * performs simulated annealing to maximize stack height using multiple random modifications per neighbor
+     * this method keeps generating neighbor stacks by making random changes and sometimes accepts them based on their height and the current temperature
      */
-    private static List<Orientation> pruneToSingleUse(List<Orientation> stack) {
-        Set<Integer> usedBoxes = new HashSet<>();
-        List<Orientation> pruned = new ArrayList<>();
-        for (Orientation o : stack) {
-            // only add first occurrence
-            if (usedBoxes.add(o.originalIndex)) {
-                pruned.add(o);
-            }
-        }
-        return pruned;
-    }
-
-    /**
-     * refines a stack using simulated annealing
-     */
-    private static List<Orientation> simulatedAnnealing(
-        List<Orientation> current,
-        List<Orientation> all,
-        double t,
-        double r
+    private static List<boxOrientation> runSimulatedAnnealing(
+        List<boxOrientation> allOrientations,
+        double initialTemp,
+        double coolingRate
     ) {
-        Random rand = new Random();
-        List<Orientation> best = new ArrayList<>(current);
-        double bestHeight = stackHeight(best);
-        while (t > 0) {
-            // try several neighbors per temperature
-            for (int it = 0; it < 20; it++) {
-                List<Orientation> neighbor = neighbour(current, all, rand);
-                double curHeight = stackHeight(current);
-                double neighHeight = stackHeight(neighbor);
-                double diff = neighHeight - curHeight;
-                // accept if better, or with probability exp(diff/t)
-                if (diff > 0 || rand.nextDouble() < Math.exp(diff / t)) {
-                    current = neighbor;
-                    if (neighHeight > bestHeight) {
-                        best = new ArrayList<>(neighbor);
-                        bestHeight = neighHeight;
+        // start with a greedy initial stack
+        List<boxOrientation> currentStack = buildGreedyStack(allOrientations);
+        List<boxOrientation> bestStack = new ArrayList<>(currentStack);
+        double bestHeight = calculateStackHeight(bestStack);
+        Random random = new Random();
+        int iterationsPerTemp = 200;
+        double temperature = initialTemp;
+        while (temperature > coolingRate) {
+            for (int iter = 0; iter < iterationsPerTemp; iter++) {
+                // create a neighbor stack by making random changes
+                List<boxOrientation> neighborStack = new ArrayList<>(currentStack);
+                int maxChanges = Math.max(1, (int) Math.floor(temperature));
+                int numChanges = 1 + random.nextInt(maxChanges);
+                for (int c = 0; c < numChanges; c++) {
+                    boolean doRemove = !neighborStack.isEmpty() && random.nextBoolean();
+                    if (doRemove) {
+                        // Remove a random box and try to restack above
+                        int removeIdx = random.nextInt(neighborStack.size());
+                        List<boxOrientation> aboveBuffer = new ArrayList<>();
+                        // Remove all boxes above the chosen index and store them
+                        for (int j = neighborStack.size() - 1; j > removeIdx; j--) {
+                            aboveBuffer.add(neighborStack.get(j));
+                            neighborStack.remove(j);
+                        }
+                        neighborStack.remove(removeIdx);
+                        Collections.reverse(aboveBuffer);
+                        // Try to restack the removed boxes if they still fit
+                        for (boxOrientation o : aboveBuffer) {
+                            if (neighborStack.isEmpty() || (o.width < neighborStack.get(neighborStack.size() - 1).width && o.depth < neighborStack.get(neighborStack.size() - 1).depth)) {
+                                neighborStack.add(o);
+                            }
+                        }
+                    } else {
+                        // Try to insert a new box at a random position if possible
+                        int insertPos = random.nextInt(neighborStack.size() + 1);
+                        Set<Integer> usedBoxIndices = new HashSet<>();
+                        for (boxOrientation o : neighborStack) usedBoxIndices.add(o.originalBoxIndex);
+                        boxOrientation boxBelow = (insertPos == 0 ? null : neighborStack.get(insertPos - 1));
+                        List<boxOrientation> candidates = new ArrayList<>();
+                        // Find all unused orientations that fit below and above
+                        for (boxOrientation o : allOrientations) {
+                            if (usedBoxIndices.contains(o.originalBoxIndex)) continue;
+                            if (boxBelow != null && !(o.width < boxBelow.width && o.depth < boxBelow.depth)) continue;
+                            // check that all above still fit
+                            boolean fitsAbove = true;
+                            boxOrientation tempBelow = o;
+                            for (int k = insertPos; k < neighborStack.size(); k++) {
+                                boxOrientation above = neighborStack.get(k);
+                                if (!(above.width < tempBelow.width && above.depth < tempBelow.depth)) {
+                                    fitsAbove = false;
+                                    break;
+                                }
+                                tempBelow = above;
+                            }
+                            if (fitsAbove) candidates.add(o);
+                        }
+                        if (!candidates.isEmpty()) {
+                            boxOrientation toAdd = candidates.get(random.nextInt(candidates.size()));
+                            List<boxOrientation> aboveSegment = new ArrayList<>();
+                            // Remove all boxes above the insert position
+                            for (int j = neighborStack.size() - 1; j >= insertPos; j--) {
+                                aboveSegment.add(neighborStack.get(j));
+                                neighborStack.remove(j);
+                            }
+                            neighborStack.add(toAdd);
+                            Collections.reverse(aboveSegment);
+                            // Try to restack the removed boxes if they still fit
+                            for (boxOrientation o : aboveSegment) {
+                                if (neighborStack.isEmpty() || (o.width < neighborStack.get(neighborStack.size() - 1).width && o.depth < neighborStack.get(neighborStack.size() - 1).depth)) {
+                                    neighborStack.add(o);
+                                }
+                            }
+                        }
+                    }
+                }
+                double currentHeight = calculateStackHeight(currentStack);
+                double neighborHeight = calculateStackHeight(neighborStack);
+                boolean accept;
+                if (neighborHeight > currentHeight) {
+                    accept = true;
+                } else {
+                    double delta = neighborHeight - currentHeight;
+                    double probability = Math.exp(delta / temperature);
+                    accept = (probability > random.nextDouble());
+                }
+                if (accept) {
+                    currentStack = neighborStack;
+                    if (neighborHeight > bestHeight) {
+                        bestStack = new ArrayList<>(neighborStack);
+                        bestHeight = neighborHeight;
                     }
                 }
             }
-            // cool down: t = t - r (assignment spec)
-            t = t - r;
+            temperature -= coolingRate;
         }
-        return best;
-    }
-
-    /**
-     * generates a random neighbor stack by modifying the current stack
-     */
-    private static List<Orientation> neighbour(
-        List<Orientation> stack,
-        List<Orientation> all,
-        Random rand
-    ) {
-        List<Orientation> copy = new ArrayList<>(stack);
-        int op = rand.nextInt(4);
-        if (op == 0 && copy.size() > 1) {
-            // swap two positions, then repair
-            int i = rand.nextInt(copy.size()), j = rand.nextInt(copy.size());
-            if (i != j) {
-                Collections.swap(copy, i, j);
-                repairFrom(copy, Math.min(i, j));
-            }
-        } else if (op == 1 && !copy.isEmpty()) {
-            // remove a random box, then try to insert a new one
-            int pos = rand.nextInt(copy.size());
-            copy.remove(pos);
-            tryInsert(copy, all, pos, rand);
-            repairFrom(copy, pos);
-        } else if (op == 2 && !copy.isEmpty()) {
-            // replace a random box with another unused orientation that fits
-            int pos = rand.nextInt(copy.size());
-            Set<Integer> usedBoxes = new HashSet<>();
-            for (Orientation o : copy) usedBoxes.add(o.originalIndex);
-            List<Orientation> candidates = new ArrayList<>();
-            for (Orientation o : all) {
-                if (!usedBoxes.contains(o.originalIndex) && fits(copy, o, pos)) {
-                    candidates.add(o);
-                }
-            }
-            if (!candidates.isEmpty()) {
-                copy.set(pos, candidates.get(rand.nextInt(candidates.size())));
-                repairFrom(copy, pos + 1);
-            }
-        } else {
-            // rebuild the stack above a random cut point
-            if (copy.isEmpty()) return copy;
-            int cut = rand.nextInt(copy.size());
-            List<Orientation> prefix = new ArrayList<>(copy.subList(0, cut));
-            Set<Integer> usedBoxes = new HashSet<>();
-            for (Orientation o : prefix) usedBoxes.add(o.originalIndex);
-            List<Orientation> rest = new ArrayList<>();
-            Orientation below = cut > 0 ? prefix.get(cut - 1) : null;
-            for (Orientation o : all) {
-                if (!usedBoxes.contains(o.originalIndex) && (below == null || (o.width < below.width && o.depth < below.depth))) {
-                    rest.add(o);
-                }
-            }
-            Collections.shuffle(rest, rand);
-            for (Orientation o : rest) {
-                if (prefix.isEmpty() || (o.width < prefix.get(prefix.size() - 1).width && o.depth < prefix.get(prefix.size() - 1).depth)) {
-                    prefix.add(o);
-                }
-            }
-            copy = prefix;
-        }
-        return copy;
-    }
-
-    /**
-     * tries to insert a random valid unused orientation at a position
-     */
-    private static void tryInsert(List<Orientation> stack, List<Orientation> all, int pos, Random rand) {
-        Set<Integer> usedBoxes = new HashSet<>();
-        for (Orientation o : stack) usedBoxes.add(o.originalIndex);
-        List<Orientation> candidates = new ArrayList<>();
-        for (Orientation o : all) {
-            if (!usedBoxes.contains(o.originalIndex) && fits(stack, o, pos)) {
-                candidates.add(o);
-            }
-        }
-        if (!candidates.isEmpty()) {
-            stack.add(pos, candidates.get(rand.nextInt(candidates.size())));
-        }
-    }
-
-    /**
-     * repairs the stack from a given index upward, removing any boxes that violate the strict-fitting rule
-     */
-    private static void repairFrom(List<Orientation> stack, int from) {
-        for (int i = stack.size() - 1; i > from; i--) {
-            if (!fits(stack, stack.get(i), i)) {
-                stack.remove(i);
-            }
-        }
-    }
-
-    /**
-     * checks if orientation o can be inserted at position pos in the stack
-     */
-    private static boolean fits(
-        List<Orientation> stack, Orientation o, int pos
-    ) {
-        if (pos > 0) {
-            Orientation below = stack.get(pos - 1);
-            if (!(o.width < below.width && o.depth < below.depth)) return false;
-        }
-        if (pos < stack.size()) {
-            Orientation above = stack.get(pos);
-            if (!(above.width < o.width && above.depth < o.depth)) return false;
-        }
-        return true;
+        return bestStack;
     }
 
     /**
      * returns the total height of a stack
      */
-    private static double stackHeight(List<Orientation> stack) {
+    private static double calculateStackHeight(List<boxOrientation> stack) {
         return stack.stream().mapToDouble(o -> o.height).sum();
     }
 
     /**
-     * reads box dimensions from a file (three positive integers per line)
+     * reads box dimensions from a file three positive integers per line
      */
-    private static List<int[]> readBoxes(String filename) {
+    private static List<int[]> readBoxesFromFile(String filename) {
         List<int[]> boxes = new ArrayList<>();
         try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                String[] t = line.trim().split("\\s+");
-                if (t.length != 3) continue;
+                String[] tokens = line.trim().split("\\s+");
+                if (tokens.length != 3) continue;
                 try {
-                    int a = Integer.parseInt(t[0]);
-                    int b = Integer.parseInt(t[1]);
-                    int c = Integer.parseInt(t[2]);
+                    int a = Integer.parseInt(tokens[0]);
+                    int b = Integer.parseInt(tokens[1]);
+                    int c = Integer.parseInt(tokens[2]);
                     if (a > 0 && b > 0 && c > 0) boxes.add(new int[]{a, b, c});
                 } catch (NumberFormatException ignored) {}
             }
@@ -272,33 +211,33 @@ public class NPCStack {
     }
 
     /**
-     * generates all 3 orientations for each box (w <= d for consistency)
+     * generates all 3 orientations for each box width less than or equal to depth for consistency
      */
-    private static List<Orientation> buildOrientations(List<int[]> boxes) {
-        List<Orientation> orientations = new ArrayList<>();
+    private static List<boxOrientation> generateAllOrientations(List<int[]> boxes) {
+        List<boxOrientation> orientations = new ArrayList<>();
         for (int i = 0; i < boxes.size(); i++) {
             int[] b = boxes.get(i);
             int x = b[0], y = b[1], z = b[2];
-            orientations.add(new Orientation(Math.min(x, y), Math.max(x, y), z, i));
-            orientations.add(new Orientation(Math.min(x, z), Math.max(x, z), y, i));
-            orientations.add(new Orientation(Math.min(y, z), Math.max(y, z), x, i));
+            orientations.add(new boxOrientation(Math.min(x, y), Math.max(x, y), z, i));
+            orientations.add(new boxOrientation(Math.min(x, z), Math.max(x, z), y, i));
+            orientations.add(new boxOrientation(Math.min(y, z), Math.max(y, z), x, i));
         }
         return orientations;
     }
 
     /**
-     * prints the stack from top to bottom, showing cumulative height at the point where the box is top-most
-     * each line: width depth height cumulativeHeightAtTop
+     * prints the stack from top to bottom showing cumulative height at the point where the box is top-most
+     * each line is width depth height cumulativeHeightAtTop
      */
-    private static void printStack(List<Orientation> stack) {
-    double total = stackHeight(stack); 
-    double cumulativeHeight = total;  
-    // iterate from the top-most box (end of list) to the bottom-most (start)
-    for (int i = stack.size() - 1; i >= 0; i--) {
-        Orientation stackItem = stack.get(i);
-        // print current box with its cumulative height from the top
-        System.out.printf("%d %d %d %.0f\n", stackItem.width, stackItem.depth, stackItem.height, cumulativeHeight);
-        cumulativeHeight -= stackItem.height; // subtract current box’s height before moving further down
+    private static void printStackWithCumulativeHeight(List<boxOrientation> stack) {
+        double totalHeight = calculateStackHeight(stack);
+        double cumulativeHeight = totalHeight;
+        // iterate from the top-most box (end of list) to the bottom-most (start)
+        for (int i = stack.size() - 1; i >= 0; i--) {
+            boxOrientation box = stack.get(i);
+            // print current box with its cumulative height from the top
+            System.out.printf("%d %d %d %.0f\n", box.width, box.depth, box.height, cumulativeHeight);
+            cumulativeHeight -= box.height;
+        }
     }
-}
 }
