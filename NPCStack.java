@@ -73,8 +73,8 @@ public class NPCStack {
     }
 
     /**
-     * performs simulated annealing to maximize stack height using multiple random modifications per neighbor
-     * this method keeps generating neighbor stacks by making random changes and sometimes accepts them based on their height and the current temperature
+     * performs simulated annealing to maximize stack height using multiple random modifications per neighbour
+     * this method keeps generating neighbour stacks by making random changes and sometimes accepts them based on their height and the current temperature
      */
     private static List<boxOrientation> runSimulatedAnnealing(
         List<boxOrientation> allOrientations,
@@ -90,35 +90,35 @@ public class NPCStack {
         double temperature = initialTemp;
         while (temperature > 0) {
             for (int iter = 0; iter < iterationsPerTemp; iter++) {
-                // create a neighbor stack by making random changes
-                List<boxOrientation> neighborStack = new ArrayList<>(currentStack);
+                // create a neighbour stack by making random changes
+                List<boxOrientation> neighbourStack = new ArrayList<>(currentStack);
                 int maxChanges = Math.max(1, (int) Math.floor(temperature));
                 int numChanges = 1 + random.nextInt(maxChanges);
                 for (int c = 0; c < numChanges; c++) {
-                    boolean doRemove = !neighborStack.isEmpty() && random.nextBoolean();
+                    boolean doRemove = !neighbourStack.isEmpty() && random.nextBoolean();
                     if (doRemove) {
                         // remove a random box and try to restack above
-                        int removeIdx = random.nextInt(neighborStack.size());
+                        int removeIdx = random.nextInt(neighbourStack.size());
                         List<boxOrientation> aboveBuffer = new ArrayList<>();
                         // remove all boxes above the chosen index and store them
-                        for (int j = neighborStack.size() - 1; j > removeIdx; j--) {
-                            aboveBuffer.add(neighborStack.get(j));
-                            neighborStack.remove(j);
+                        for (int j = neighbourStack.size() - 1; j > removeIdx; j--) {
+                            aboveBuffer.add(neighbourStack.get(j));
+                            neighbourStack.remove(j);
                         }
-                        neighborStack.remove(removeIdx);
+                        neighbourStack.remove(removeIdx);
                         Collections.reverse(aboveBuffer);
                         // try to restack the removed boxes if they still fit
                         for (boxOrientation o : aboveBuffer) {
-                            if (neighborStack.isEmpty() || (o.width < neighborStack.get(neighborStack.size() - 1).width && o.depth < neighborStack.get(neighborStack.size() - 1).depth)) {
-                                neighborStack.add(o);
+                            if (neighbourStack.isEmpty() || (o.width < neighbourStack.get(neighbourStack.size() - 1).width && o.depth < neighbourStack.get(neighbourStack.size() - 1).depth)) {
+                                neighbourStack.add(o);
                             }
                         }
                     } else {
                         // try to insert a new box at a random position if possible
-                        int insertPos = random.nextInt(neighborStack.size() + 1);
+                        int insertPos = random.nextInt(neighbourStack.size() + 1);
                         Set<Integer> usedBoxIndices = new HashSet<>();
-                        for (boxOrientation o : neighborStack) usedBoxIndices.add(o.originalBoxIndex);
-                        boxOrientation boxBelow = (insertPos == 0 ? null : neighborStack.get(insertPos - 1));
+                        for (boxOrientation o : neighbourStack) usedBoxIndices.add(o.originalBoxIndex);
+                        boxOrientation boxBelow = (insertPos == 0 ? null : neighbourStack.get(insertPos - 1));
                         List<boxOrientation> candidates = new ArrayList<>();
                         // find all unused orientations that fit below and above
                         for (boxOrientation o : allOrientations) {
@@ -127,8 +127,8 @@ public class NPCStack {
                             // check that all above still fit
                             boolean fitsAbove = true;
                             boxOrientation tempBelow = o;
-                            for (int k = insertPos; k < neighborStack.size(); k++) {
-                                boxOrientation above = neighborStack.get(k);
+                            for (int k = insertPos; k < neighbourStack.size(); k++) {
+                                boxOrientation above = neighbourStack.get(k);
                                 if (!(above.width < tempBelow.width && above.depth < tempBelow.depth)) {
                                     fitsAbove = false;
                                     break;
@@ -141,36 +141,36 @@ public class NPCStack {
                             boxOrientation toAdd = candidates.get(random.nextInt(candidates.size()));
                             List<boxOrientation> aboveSegment = new ArrayList<>();
                             // remove all boxes above the insert position
-                            for (int j = neighborStack.size() - 1; j >= insertPos; j--) {
-                                aboveSegment.add(neighborStack.get(j));
-                                neighborStack.remove(j);
+                            for (int j = neighbourStack.size() - 1; j >= insertPos; j--) {
+                                aboveSegment.add(neighbourStack.get(j));
+                                neighbourStack.remove(j);
                             }
-                            neighborStack.add(toAdd);
+                            neighbourStack.add(toAdd);
                             Collections.reverse(aboveSegment);
                             // try to restack the removed boxes if they still fit
                             for (boxOrientation o : aboveSegment) {
-                                if (neighborStack.isEmpty() || (o.width < neighborStack.get(neighborStack.size() - 1).width && o.depth < neighborStack.get(neighborStack.size() - 1).depth)) {
-                                    neighborStack.add(o);
+                                if (neighbourStack.isEmpty() || (o.width < neighbourStack.get(neighbourStack.size() - 1).width && o.depth < neighbourStack.get(neighbourStack.size() - 1).depth)) {
+                                    neighbourStack.add(o);
                                 }
                             }
                         }
                     }
                 }
                 double currentHeight = calculateStackHeight(currentStack);
-                double neighborHeight = calculateStackHeight(neighborStack);
+                double neighbourHeight = calculateStackHeight(neighbourStack);
                 boolean accept;
-                if (neighborHeight > currentHeight) {
+                if (neighbourHeight > currentHeight) {
                     accept = true;
                 } else {
-                    double delta = neighborHeight - currentHeight;
+                    double delta = neighbourHeight - currentHeight;
                     double probability = Math.exp(delta / temperature);
                     accept = (probability > random.nextDouble());
                 }
                 if (accept) {
-                    currentStack = neighborStack;
-                    if (neighborHeight > bestHeight) {
-                        bestStack = new ArrayList<>(neighborStack);
-                        bestHeight = neighborHeight;
+                    currentStack = neighbourStack;
+                    if (neighbourHeight > bestHeight) {
+                        bestStack = new ArrayList<>(neighbourStack);
+                        bestHeight = neighbourHeight;
                     }
                 }
             }

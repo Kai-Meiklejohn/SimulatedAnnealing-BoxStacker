@@ -25,7 +25,7 @@ Simulated annealing (SA) mimics the physical process of annealing in metallurgy:
 
 - State: A candidate stack (list of box orientations).
 - Energy: Negative of stack height (we want to maximise height).
-- Neighborhood: Random local edits (remove/insert, rebuild part of the stack, etc.). The number of boxes that can be changed in a move is controlled by the temperature parameter t.
+- Neighbourhood: Random local edits (remove/insert, rebuild part of the stack, etc.). The number of boxes that can be changed in a move is controlled by the temperature parameter t.
 - Acceptance:
   - Always accept improvements (taller stacks).
   - Otherwise, accept with probability exp(Δh / t), where Δh is the change in height, allowing escape from local optima.
@@ -46,13 +46,13 @@ java NPCStack <input-file> <initial-temperature> <cooling-rate>
 ```
 
 - `<input-file>`: Path to a text file where each line has three positive integers (box dimensions).
-- `<initial-temperature>`: Integer > 0, controls the number of boxes that can be changed in a move (neighborhood size) in SA.
+- `<initial-temperature>`: Integer > 0, controls the number of boxes that can be changed in a move (neighbourhood size) in SA.
 - `<cooling-rate>`: Real value (0.1 ≤ r ≤ t), the amount by which temperature is reduced after each new solution (i.e., t = t - r).
 
 **Usage Example:**
 
 ```
-java NPCStack boxes.txt 20 1
+java NPCStack Boxes.txt 20 1
 ```
 
 This runs the optimiser on `boxes.txt` with an initial temperature of 20 and a cooling rate of 0.1. Output is printed to stdout:
