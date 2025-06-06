@@ -5,7 +5,7 @@ import java.util.*;
  * Box-stacker: greedy algorithm to make initial stack,
  * then simulated annealing to refine.
  *
- * Author: Kai Meiklejohn (1632448)
+ * Author: Kai Meiklejohn 
  */
 public class NPCStack {
 
